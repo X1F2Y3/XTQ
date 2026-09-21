@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 class FieldConfig:
     """思维场全局配置"""
     scan_interval: float = 0.05          # 扫描间隔(秒) ~20Hz
-    activation_threshold: float = 0.25   # 激活阈值
+    activation_threshold: float = 0.10   # 激活阈值
     semantic_weight: float = 0.5         # 语义关联权重
     temporal_weight: float = 0.3         # 时序关联权重
     tag_weight: float = 0.2              # 标签关联权重
@@ -18,8 +18,8 @@ class FieldConfig:
 class TriggerConfig:
     """触发引擎配置"""
     cooldown_seconds: float = 0.1        # 全局冷却时间
-    max_consecutive: int = 5             # 最大连续触发次数
-    reset_window: float = 30.0           # 连续计数重置窗口(秒)
+    max_consecutive: int = 20             # 最大连续触发次数
+    reset_window: float = 0.5           # 连续计数重置窗口(秒)
     decay_factor: float = 0.05           # 每次扫描衰减因子
 
 
@@ -28,8 +28,8 @@ class MemoryConfig:
     """记忆系统配置"""
     working_capacity: int = 10           # 工作记忆容量
     short_capacity: int = 100            # 短期记忆容量
-    short_promote_count: int = 3         # 晋升到短期记忆的激活次数
-    long_promote_count: int = 10         # 晋升到长期记忆的激活次数
+    short_promote_count: int = 1         # 晋升到短期记忆的激活次数
+    long_promote_count: int = 3         # 晋升到长期记忆的激活次数
     long_min_association: float = 0.6    # 长期记忆最低关联度
     working_decay: float = 0.05          # 工作记忆衰减因子
     cleanup_threshold: float = 0.1       # 清理阈值(强度低于此被清除)

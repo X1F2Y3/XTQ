@@ -46,7 +46,7 @@ class ShortTermMemory:
 
     def promote_candidates(
         self,
-        min_access_count: int = 10,
+        min_access_count: int = 2,
         min_association: float = 0.6,
     ) -> list[MemoryEntry]:
         """获取晋升到长期记忆的候选条目"""

@@ -1,10 +1,46 @@
+# ---- Python ----
 __pycache__/
-*.pyc
-.env
+*.py[cod]
 *.egg-info/
-dist/
+.eggs/
 build/
+dist/
 .venv/
 venv/
+env/
+
+# ---- 测试 / 类型检查缓存 ----
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# ---- 运行时产物 ----
 memory_data/
 *.log
+
+# ---- 密钥 / 环境 ----
+.env
+.env.*
+!.env.example
+
+# ---- 临时探针脚本（第三方模型连通性试验，不入库）----
+test_glm*.js
+test_glm*.py
+test_compare.js
+test_llama.js
+test_non_stream.py
+test_net.ps1
+glm_*.txt
+glm_*.json
+
+# ---- OS ----
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# ---- 编辑器 ----
+.vscode/
+.idea/
+*.swp

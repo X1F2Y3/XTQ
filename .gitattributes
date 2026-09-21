@@ -1,0 +1,25 @@
+# 所有文本文件默认 LF，检出时按平台转换
+* text=auto eol=lf
+
+# Python / Markdown / JSON / HTML：强制 LF
+*.py   text eol=lf
+*.md   text eol=lf
+*.json text eol=lf
+*.html text eol=lf
+
+# Windows 批处理：强制 CRLF（否则 cmd.exe 可能行为异常）
+*.bat  text eol=crlf
+*.cmd  text eol=crlf
+
+# 二进制：不做任何转换
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.pdf  binary
+
+# 语言统计：将这些标记为文档，不计入代码占比
+*.md   linguist-documentation
+docs/* linguist-documentation
+sessions/* linguist-documentation

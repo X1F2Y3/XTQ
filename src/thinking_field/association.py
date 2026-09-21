@@ -60,17 +60,26 @@ class AssociationEngine:
         chain_b: ThoughtChainItem,
         temporal_half_life: float = 120.0,
     ) -> AssociationResult:
-        """计算两个思维链之间的关联强度"""
+        """计算两个思维链之间的关联强度 - 支持动态增强"""
         semantic = self._compute_semantic(chain_a, chain_b)
         temporal = self._compute_temporal(chain_a, chain_b, temporal_half_life)
         tag = self._compute_tag_overlap(chain_a, chain_b)
+
+        # 动态增强：两个链都被激活过，增加关联强度
+        activation_boost = 0.0
+        if chain_a.activation_count > 0 and chain_b.activation_count > 0:
+            # 激活次数越多，关联越强
+            min_activations = min(chain_a.activation_count, chain_b.activation_count)
+            activation_boost = min(0.3, min_activations * 0.05)  # 最多增加0.3
 
         w = self.weights
         total = (
             w.semantic * semantic +
             w.temporal * temporal +
-            w.tag * tag
+            w.tag * tag +
+            activation_boost  # 加入动态增强
         )
+        total = min(1.0, total)  # 不超过1.0
 
         return AssociationResult(
             chain_a_id=chain_a.chain_id,

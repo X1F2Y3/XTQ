@@ -139,7 +139,7 @@ class PseudoPermanentMemory:
 
         for entry in list(self._entries.values()):
             # 高显著性: access_count >= 5 且 strength >= 0.5
-            if entry.access_count >= 5 and entry.strength >= 0.5:
+            if entry.access_count >= 2 and entry.strength >= 0.3:
                 entry.strength = min(1.0, entry.strength + 0.1)
                 stats["enhanced"] += 1
 
