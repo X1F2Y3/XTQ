@@ -153,20 +153,19 @@ class ThinkingField:
         """执行触发 - 调用大模型并处理响应"""
 
         # 1. 构建请求
-        related_chains = [
-            {
+        # 原实现在每个字段的取值里各调一次 chain_manager.get(assoc.chain_b_id)，
+        # 同一 id 最多被查 3 次（性能 + 可读性都差）。改为先取一次存变量。
+        related_chains = []
+        for assoc in associations[:3]:
+            if assoc.chain_b_id == chain.chain_id:
+                continue
+            other = self.chain_manager.get(assoc.chain_b_id)
+            related_chains.append({
                 "chain_id": assoc.chain_b_id,
                 "score": assoc.total_score,
-                "theme": self.chain_manager.get(assoc.chain_b_id).theme
-                if self.chain_manager.get(assoc.chain_b_id)
-                else "?",
-                "content": self.chain_manager.get(assoc.chain_b_id).content
-                if self.chain_manager.get(assoc.chain_b_id)
-                else "",
-            }
-            for assoc in associations[:3]
-            if assoc.chain_b_id != chain.chain_id
-        ]
+                "theme": other.theme if other else "?",
+                "content": other.content if other else "",
+            })
 
         memory_context = [
             {"data": m.data, "tags": m.tags}

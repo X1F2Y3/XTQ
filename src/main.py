@@ -2,9 +2,10 @@
 """思维动态场 (TDF) - 主入口
 
 Usage:
-    python src/main.py --mock          # Mock 模式（无需 API Key）
-    python src/main.py --openai        # OpenAI 模式（需配置环境变量）
-    python src/main.py --claude        # Claude 模式（需配置环境变量）
+    python src/main.py            # Mock 模式（无需 API Key，当前唯一可用模式）
+
+说明：OpenAI / Claude 适配器尚未实现（见 README 路线图），因此不提供
+--openai / --claude 参数 —— 不承诺做不到的事。
 """
 
 from __future__ import annotations
@@ -30,10 +31,10 @@ logger = setup_logger("tdf.main", "INFO")
 async def main() -> None:
     parser = argparse.ArgumentParser(description="思维动态场 (TDF)")
     parser.add_argument(
-        "--mock",
-        action="store_true",
-        default=True,
-        help="使用 Mock 适配器（默认启用，无需 API Key）"
+        "--provider",
+        choices=["mock"],
+        default="mock",
+        help="模型适配器（当前仅 mock 可用）",
     )
     args = parser.parse_args()
 
@@ -42,7 +43,7 @@ async def main() -> None:
     logger.info("=" * 60)
 
     # 1. 创建思维场
-    config = TDFConfig(model_provider="mock")
+    config = TDFConfig(model_provider=args.provider)
     field = ThinkingField(config)
 
     # 2. 初始化种子思维链（模拟用户输入/系统注入）
@@ -85,7 +86,11 @@ async def main() -> None:
         stop_event.set()
 
     signal.signal(signal.SIGINT, _handle_signal)
-    signal.signal(signal.SIGTERM, _handle_signal)
+    # ★ Windows 上**没有 SIGTERM**（`signal.SIGTERM` 在 Windows Python 中不存在，
+    #   直接访问会 AttributeError 让主入口一启动就崩）。用 getattr 探测后再注册。
+    _sigterm = getattr(signal, "SIGTERM", None)
+    if _sigterm is not None:
+        signal.signal(_sigterm, _handle_signal)
 
     logger.info("思维场开始运行. Press Ctrl+C 停止.")
 

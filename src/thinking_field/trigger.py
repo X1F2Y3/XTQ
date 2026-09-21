@@ -154,9 +154,9 @@ class TriggerEngine:
         return elapsed >= self.config.cooldown_seconds
 
     def _check_consecutive_limit(self) -> bool:
-        """检查连续触发次数"""
+        """检查连续触发次数。返回 True = 允许触发，False = 应被拦下。"""
         if self._consecutive_count >= self.config.max_consecutive:
-            # 在重置窗口内超限
+            # 在重置窗口内超限 → 拦下
             if self._last_trigger_time > 0:
                 window_elapsed = time.time() - self._last_trigger_time
                 if window_elapsed < self.config.reset_window:
@@ -165,7 +165,13 @@ class TriggerEngine:
                         f"冷却重置"
                     )
                     return False
-            # 超出窗口，重置计数
+            # ★ 已超出重置窗口：原代码注释说"重置计数"但**实际什么都没做**，
+            #   导致 _consecutive_count 永不归零、只增不减，限流形同虚设
+            #   （除了外部显式调 reset_consecutive()）。这里补上真正的重置。
+            logger.debug(
+                f"连续触发计数超出重置窗口({self.config.reset_window}s), 归零"
+            )
+            self._consecutive_count = 0
         return True
 
     def reset_consecutive(self) -> None:

@@ -31,8 +31,15 @@ class MemorySystem:
         consolidation: ConsolidationConfig | None = None,
     ) -> None:
         self.config = config or MemoryConfig()
-        self.working = WorkingMemory(capacity=self.config.working_capacity)
-        self.short_term = ShortTermMemory(capacity=self.config.short_capacity)
+        # 清理阈值从配置注入，不再让各层写死 —— 否则改 MemoryConfig 不生效。
+        self.working = WorkingMemory(
+            capacity=self.config.working_capacity,
+            cleanup_threshold=self.config.cleanup_threshold,
+        )
+        self.short_term = ShortTermMemory(
+            capacity=self.config.short_capacity,
+            cleanup_threshold=self.config.short_cleanup_threshold,
+        )
         self.pseudo_permanent = PseudoPermanentMemory(consolidation=consolidation)
 
     def add_to_working(self, entry: MemoryEntry) -> None:
@@ -126,9 +133,19 @@ class MemorySystem:
             "short_count": self.short_term.count,
             "permanent_count": self.pseudo_permanent.count,
             "permanent_detail": self.pseudo_permanent.stats,
+            "healthy": self.pseudo_permanent.healthy,
             "total": (
                 self.working.count
                 + self.short_term.count
                 + self.pseudo_permanent.count
             ),
         }
+
+    @property
+    def healthy(self) -> bool:
+        """伪永久记忆的加载/持久化是否都成功。
+
+        为 False 意味着有数据可能只存在于内存中（未落盘）——
+        调用方应据此告警，而不是把 add() 的成功当作"已持久化"。
+        """
+        return self.pseudo_permanent.healthy

@@ -19,7 +19,11 @@ PREFIX_CHAIN = "tc"
 
 
 def _generate_chain_id() -> str:
-    """生成带前缀的确定性 ID"""
+    """生成带前缀的唯一 ID。
+
+    注意：实际是**随机**生成（`random.choices`），不是确定性的。原 docstring
+    写"确定性 ID"与实现矛盾 —— 若确需按内容去重，请改用内容哈希。
+    """
     chars = string.ascii_lowercase + string.digits
     suffix = ''.join(random.choices(chars, k=8))
     return f"{PREFIX_CHAIN}_{suffix}"
@@ -30,7 +34,7 @@ class ThoughtChainItem:
     """单条思维链
 
     借鉴 Task.ts:
-    - chain_id: 确定性标识 (类似 Task.id + prefix)
+    - chain_id: 带前缀的唯一标识 (类似 Task.id + prefix)
     - status: 状态机 (active/decayed/dormant)
     - created_at / last_activated: 时间追踪
     - activation_count: 历史激活次数
@@ -90,10 +94,31 @@ class ThoughtChainItem:
 
     @classmethod
     def from_dict(cls, data: dict) -> "ThoughtChainItem":
-        """反序列化 - 用于加载"""
+        """反序列化 - 用于加载。
+
+        ★ 不信任外部数据（存档可能被手改/来自旧版本）：
+        - 只接受本 dataclass 声明的字段（白名单），忽略多余键，避免
+          `setattr` 被塞入任意属性；
+        - 逐字段做类型校验，类型不符时**回落到默认值并发 warning**，
+          而不是让错误的类型（如 activation_level="high"）一路传染下去，
+          直到某处做算术运算时才炸得莫名其妙。
+        """
         item = cls()
-        for key in cls.__dataclass_fields__:
-            setattr(item, key, data.get(key, getattr(item, key)))
+        defaults = {k: getattr(item, k) for k in cls.__dataclass_fields__}
+        for key, default in defaults.items():
+            if key not in data:
+                continue
+            value = data[key]
+            if value is None:
+                continue
+            if type(value) is not type(default) and not isinstance(value, type(default)):
+                logger.warning(
+                    f"思维链字段 {key} 类型不符(期望 {type(default).__name__}, "
+                    f"实际 {type(value).__name__})，回落默认值"
+                )
+                continue
+            setattr(item, key, value)
+        # 不调用 cls() 的随机默认 chain_id 覆盖存档里的真实 id：上面循环已处理
         return item
 
 

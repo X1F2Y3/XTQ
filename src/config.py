@@ -32,7 +32,8 @@ class MemoryConfig:
     long_promote_count: int = 3         # 晋升到长期记忆的激活次数
     long_min_association: float = 0.6    # 长期记忆最低关联度
     working_decay: float = 0.05          # 工作记忆衰减因子
-    cleanup_threshold: float = 0.1       # 清理阈值(强度低于此被清除)
+    cleanup_threshold: float = 0.1       # 工作记忆清理阈值(强度低于此被清除)
+    short_cleanup_threshold: float = 0.05  # 短期记忆清理阈值(更耐留, 故更低)
     cleanup_timeout: float = 300.0       # 清理超时(秒)
 
 

@@ -14,8 +14,11 @@ from ..utils.logger import logger
 class ShortTermMemory:
     """短期记忆 - 容量较大, 时间衰减"""
 
-    def __init__(self, capacity: int = 100) -> None:
+    def __init__(self, capacity: int = 100, cleanup_threshold: float = 0.05) -> None:
         self._capacity = capacity
+        # 同 WorkingMemory：阈值必须走配置，不能写死。
+        # 短期记忆比工作记忆更"耐留"，所以默认阈值更低（0.05 vs 0.1）。
+        self._cleanup_threshold = cleanup_threshold
         self._entries: dict[str, MemoryEntry] = {}
 
     def add(self, entry: MemoryEntry) -> None:
@@ -38,7 +41,7 @@ class ShortTermMemory:
         to_cleanup: list[MemoryEntry] = []
         for entry in self._entries.values():
             entry.decay(factor)
-            if entry.strength <= 0.05:
+            if entry.strength <= self._cleanup_threshold:
                 to_cleanup.append(entry)
         for e in to_cleanup:
             del self._entries[e.entry_id]

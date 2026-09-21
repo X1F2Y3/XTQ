@@ -14,8 +14,11 @@ from ..utils.logger import logger
 class WorkingMemory:
     """工作记忆 - 容量有限, 快速衰减"""
 
-    def __init__(self, capacity: int = 10) -> None:
+    def __init__(self, capacity: int = 10, cleanup_threshold: float = 0.1) -> None:
         self._capacity = capacity
+        # 清理阈值来自 MemoryConfig.cleanup_threshold，不再写死 —— 否则配置项
+        # 形同虚设（改了 config 却不生效，比没有配置项更糟：给出虚假的控制感）。
+        self._cleanup_threshold = cleanup_threshold
         self._entries: dict[str, MemoryEntry] = {}
 
     def add(self, entry: MemoryEntry) -> None:
@@ -34,7 +37,7 @@ class WorkingMemory:
         to_cleanup: list[MemoryEntry] = []
         for entry in list(self._entries.values()):
             entry.decay(factor)
-            if entry.strength <= 0.1:
+            if entry.strength <= self._cleanup_threshold:
                 to_cleanup.append(entry)
         for e in to_cleanup:
             del self._entries[e.entry_id]

@@ -288,11 +288,19 @@ class MemoryExpert:
         按优先级评分从高到低加载
         只返回达到最低优先级的条目
         """
-        # 按优先级排序
+        # 按优先级排序。
+        # 原实现 `key=lambda eid: self._entries.get(eid, MemoryExpertEntry("", "", None)).get_priority_score()`
+        # 有两个问题：① 每次比较都要构造一个临时 MemoryExpertEntry（O(n log n) 次分配）；
+        # ② 用位置参数传必填字段，字段顺序一变就静默错位。
+        # 改为先取一次分数、跳过缺失项。
+        def _score(eid: str) -> float:
+            entry = self._entries.get(eid)
+            return entry.get_priority_score() if entry is not None else -1.0
+
         sorted_pool = sorted(
             self._short_term_pool,
-            key=lambda eid: self._entries.get(eid, MemoryExpertEntry("", "", None)).get_priority_score(),
-            reverse=True
+            key=_score,
+            reverse=True,
         )
         
         loaded = []

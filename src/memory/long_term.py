@@ -21,6 +21,16 @@ from pathlib import Path
 from .models import MemoryEntry
 from ..utils.logger import logger
 
+# ── 显著性判据（单一事实来源）────────────────────────────────────────────
+# 这些阈值原先散落在三处：注释里写一套、consolidate() 里写另一套、stats 里写第三套，
+# 导致"被增强的记忆"和"统计为高显著性的记忆"根本不是同一批。统一到这里，
+# 所有引用点（consolidate / stats / 核心记忆保护）都必须走这些常量。
+HIGH_SALIENCE_ACCESS = 5       # 高显著性：累计访问次数下限
+HIGH_SALIENCE_STRENGTH = 0.5   # 高显著性：强度下限
+CORE_ACCESS_THRESHOLD = 10     # 核心记忆保护：访问次数下限
+CORE_ENHANCE_BONUS = 0.1       # 每次巩固的强度增益
+DECAY_FACTOR = 0.9             # 常规衰减乘数
+
 
 @dataclass
 class ConsolidationConfig:
@@ -60,6 +70,10 @@ class PseudoPermanentMemory:
         )
         self._entries: dict[str, MemoryEntry] = {}
         self._last_consolidation: float = 0.0
+        # 健康状态：加载/持久化任一失败即置 False，由 MemorySystem 上报，
+        # 避免"数据没落盘但调用方以为成功"的静默丢失。
+        self._load_ok: bool = True
+        self._persist_ok: bool = True
         self._load()
 
     def add(self, entry: MemoryEntry) -> None:
@@ -138,16 +152,16 @@ class PseudoPermanentMemory:
         stats = {"enhanced": 0, "decayed": 0, "pruned": 0, "core_protected": 0}
 
         for entry in list(self._entries.values()):
-            # 高显著性: access_count >= 5 且 strength >= 0.5
-            if entry.access_count >= 2 and entry.strength >= 0.3:
-                entry.strength = min(1.0, entry.strength + 0.1)
+            # 高显著性: access_count >= HIGH_SALIENCE_ACCESS 且 strength >= HIGH_SALIENCE_STRENGTH
+            if (entry.access_count >= HIGH_SALIENCE_ACCESS
+                    and entry.strength >= HIGH_SALIENCE_STRENGTH):
+                entry.strength = min(1.0, entry.strength + CORE_ENHANCE_BONUS)
                 stats["enhanced"] += 1
 
             # 低显著性: 长期未访问
             elif now - entry.accessed_at > self.config.association_break_threshold:
                 # 检查是否是核心记忆 (access_count 高但近期未激活)
-                core_access_threshold = 10
-                if entry.access_count >= core_access_threshold:
+                if entry.access_count >= CORE_ACCESS_THRESHOLD:
                     entry.strength = max(
                         entry.strength,
                         self.config.core_memory_min_strength,
@@ -156,7 +170,7 @@ class PseudoPermanentMemory:
 
             # 正常衰减
             else:
-                entry.strength *= 0.9
+                entry.strength *= DECAY_FACTOR
                 stats["decayed"] += 1
 
         # 突触修剪
@@ -241,8 +255,14 @@ class PseudoPermanentMemory:
     def get_all(self) -> list[MemoryEntry]:
         return list(self._entries.values())
 
-    def _persist(self) -> None:
-        """持久化到文件系统"""
+    def _persist(self) -> bool:
+        """持久化到文件系统。
+
+        ★ 返回是否成功。原实现把异常吞进 logger 后返回 None，调用方
+        （add / access / decay_all / consolidate）无从得知数据**根本没落盘** ——
+        用户看到 add() 成功返回，进程一退数据就没了，属于静默数据丢失。
+        现在返回 bool，由 MemorySystem 汇总成 degraded 状态对外暴露。
+        """
         try:
             os.makedirs(os.path.dirname(self._storage_path), exist_ok=True)
             data = [
@@ -258,19 +278,35 @@ class PseudoPermanentMemory:
                 }
                 for e in self._entries.values()
             ]
-            with open(self._storage_path, "w", encoding="utf-8") as f:
+            # 先写临时文件再原子替换，避免写一半崩溃导致文件损坏
+            tmp = f"{self._storage_path}.tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp, self._storage_path)
+            self._persist_ok = True
+            return True
         except Exception as e:
-            logger.error(f"记忆持久化失败: {e}")
+            self._persist_ok = False
+            logger.error(f"记忆持久化失败（数据仅存于内存）: {e}")
+            return False
 
     def _load(self) -> None:
-        """从文件系统加载"""
+        """从文件系统加载。
+
+        ★ 文件损坏时不再静默降级为空库：把损坏文件**另存**为 .corrupt-<ts>
+        （既不丢也不覆盖），再用 ERROR 明确告知用户。原实现只打一行 log 就
+        继续在空库上运行，用户会误以为"记忆正常，只是没有新数据"。
+        """
         if not os.path.exists(self._storage_path):
             logger.info("伪永久记忆存储文件不存在, 初始化空库")
             return
         try:
             with open(self._storage_path, "r", encoding="utf-8") as f:
                 raw_list = json.load(f)
+            if not isinstance(raw_list, list):
+                raise ValueError(f"顶层应为 list，实际是 {type(raw_list).__name__}")
             for raw in raw_list:
                 entry = MemoryEntry(
                     entry_id=raw["entry_id"],
@@ -284,12 +320,29 @@ class PseudoPermanentMemory:
                 )
                 self._entries[entry.entry_id] = entry
             logger.info(f"伪永久记忆加载: {len(self._entries)} 条")
+            self._load_ok = True
         except Exception as e:
-            logger.error(f"记忆加载失败: {e}")
+            self._load_ok = False
+            # 不静默丢弃：把损坏文件另存，用户可以人工抢救
+            bad = f"{self._storage_path}.corrupt-{int(time.time())}"
+            try:
+                os.replace(self._storage_path, bad)
+                logger.error(
+                    f"记忆加载失败: {e} —— 已保留损坏文件于 {bad}，本次以空库启动"
+                )
+            except OSError as mv_exc:
+                logger.error(
+                    f"记忆加载失败: {e}；且无法备份损坏文件: {mv_exc} —— 本次以空库启动"
+                )
 
     @property
     def count(self) -> int:
         return len(self._entries)
+
+    @property
+    def healthy(self) -> bool:
+        """加载与最近一次持久化是否都成功。False = 数据可能仅存于内存。"""
+        return self._load_ok and self._persist_ok
 
     @property
     def stats(self) -> dict:
@@ -302,11 +355,13 @@ class PseudoPermanentMemory:
                 "low_salience": 0,
                 "association_broken": 0,
                 "core_memories": 0,
+                "healthy": self.healthy,
             }
 
         high_salience = sum(
             1 for e in self._entries.values()
-            if e.access_count >= 5 and e.strength >= 0.5
+            if e.access_count >= HIGH_SALIENCE_ACCESS
+            and e.strength >= HIGH_SALIENCE_STRENGTH
         )
         association_broken = sum(
             1 for e in self._entries.values()
@@ -320,6 +375,7 @@ class PseudoPermanentMemory:
             "association_broken": association_broken,
             "core_memories": sum(
                 1 for e in self._entries.values()
-                if e.access_count >= 10
+                if e.access_count >= CORE_ACCESS_THRESHOLD
             ),
+            "healthy": self.healthy,
         }

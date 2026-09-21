@@ -1,7 +1,7 @@
 """记忆数据模型 - V1/V2/V3 通用接口
 
 借鉴 claude-code-haha Task.ts 的设计：
-- 确定性ID + 前缀
+- 前缀化唯一ID
 - 状态流转到终端不再变
 - 时间追踪字段
 
@@ -21,7 +21,12 @@ PREFIX_MEMORY = "mem"
 
 
 def _generate_memory_id() -> str:
-    """生成带前缀的确定性记忆ID"""
+    """生成带前缀的唯一记忆ID。
+
+    注意：ID 是**随机**产生的（`random.choices`），不是确定性的 —— 原 docstring
+    写"确定性ID"与实现矛盾，易被误当成"同内容同ID可用于去重"。若确需确定性
+    ID（内容哈希），请显式改用 hashlib.sha256(content)。
+    """
     chars = string.ascii_lowercase + string.digits
     suffix = ''.join(random.choices(chars, k=8))
     return f"{PREFIX_MEMORY}_{suffix}"
