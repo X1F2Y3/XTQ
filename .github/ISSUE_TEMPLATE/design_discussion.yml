@@ -1,0 +1,20 @@
+name: 方案讨论 / 架构建议
+description: 对假说、抽象层设计、V2/V3 演进路径的讨论
+title: "[design] "
+body:
+  - type: textarea
+    id: topic
+    attributes:
+      label: 议题
+      description: 引用 PROJECT.md / docs/architecture.md 的具体段落。
+    validations:
+      required: true
+  - type: textarea
+    id: argument
+    attributes:
+      label: 你的论证
+      description: >
+        本项目假说性强，欢迎质疑 —— 但请给出可检验的论证或反例，
+        而非"感觉不对"。
+    validations:
+      required: true

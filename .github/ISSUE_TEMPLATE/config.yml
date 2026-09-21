@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 先读文档
+    url: https://github.com/X1F2Y3/XTQ#readme
+    about: README 有「当前状态」与「路线图」，先确认问题是已实现还是规划中
+  - name: 安全 / 密钥问题
+    url: https://github.com/X1F2Y3/XTQ/security/advisories/new
+    about: 请走私密通道，不要开公开 issue
